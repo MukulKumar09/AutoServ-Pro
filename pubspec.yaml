@@ -1,0 +1,68 @@
+name: garage_management_system
+description: Professional Garage / Workshop Management Software
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.3
+
+  # State Management
+  provider: ^6.1.2
+
+  # UI & UX
+  data_table_2: ^2.5.12
+  flutter_slidable: ^3.1.1
+  syncfusion_flutter_signaturepad: ^27.1.48
+  fl_chart: ^0.69.0
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.1
+
+  # PDF & Printing
+  pdf: ^3.11.1
+  printing: ^5.13.2
+
+  # Image & File
+  image_picker: ^1.1.2
+  file_picker: ^8.1.2
+
+  # Utils
+  intl: ^0.19.0
+  uuid: ^4.5.1
+  path_provider: ^2.1.4
+  shared_preferences: ^2.3.2
+  url_launcher: ^6.3.0
+  excel: ^4.0.6
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/fonts/
+
+  fonts:
+    - family: Rajdhani
+      fonts:
+        - asset: assets/fonts/Rajdhani-Regular.ttf
+        - asset: assets/fonts/Rajdhani-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Rajdhani-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Rajdhani-Bold.ttf
+          weight: 700
