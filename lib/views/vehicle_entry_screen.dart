@@ -14,6 +14,11 @@ class VehicleEntryScreen extends StatefulWidget {
   State<VehicleEntryScreen> createState() => _VehicleEntryScreenState();
 }
 
+const List<String> _carMakes = [
+  'Maruti Suzuki', 'Hyundai', 'Tata', 'Mahindra', 'Toyota', 'Kia', 'Honda',
+  'Volkswagen', 'Skoda', 'Renault', 'Nissan', 'MG Motor', 'Citroen', 'Force Motors', 'Jeep'
+];
+
 class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
   // ── Separate form keys per step ──────────────────────────────────────────
   final _step0Key = GlobalKey<FormState>(); // Customer step
@@ -37,6 +42,38 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
   bool _submitting = false;
 
   GlobalKey<FormState> get _currentKey => _step == 0 ? _step0Key : _step1Key;
+
+  @override
+  void initState() {
+    super.initState();
+    final card = context.read<JobCardController>().activeJobCard;
+    if (card != null && card.id.isEmpty) {
+      // Pre-fill from existing draft
+      _nameCtrl.text = card.customerName;
+      _addrCtrl.text = card.address;
+      _contactCtrl.text = card.contactNumber;
+      _altCtrl.text = card.alternateNumber;
+      _makeCtrl.text = card.vehicleMake;
+      _modelCtrl.text = card.vehicleModel;
+      _regCtrl.text = card.registrationNumber;
+      _chassisCtrl.text = card.chassisNumber;
+      _engineCtrl.text = card.engineNumber;
+      _kmCtrl.text = card.kmReading;
+      if (_nameCtrl.text.isNotEmpty) _step = 1;
+    } else {
+      // Fresh start, clear any old active card
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<JobCardController>().setActiveJobCard(
+          JobCardModel(
+            id: '', roNumber: '', entryDate: DateTime.now(), inTime: DateTime.now(),
+            customerName: '', address: '', contactNumber: '', alternateNumber: '',
+            vehicleMake: '', vehicleModel: '', registrationNumber: '', chassisNumber: '',
+            engineNumber: '', kmReading: '', createdBy: '', createdAt: DateTime.now(), updatedAt: DateTime.now(),
+          )
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -65,17 +102,16 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
     }
   }
 
-  // ── Final submit ──────────────────────────────────────────────────────────
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_step1Key.currentState!.validate()) return;
 
-    setState(() => _submitting = true);
     final ctrl = context.read<JobCardController>();
     final auth = context.read<AuthController>();
 
-    final id = await ctrl.createNewJobCard(
-      createdByUid: auth.currentUser!.uid,
+    final draft = JobCardModel(
+      id: '', roNumber: '', // Draft has empty ID
+      entryDate: DateTime.now(), inTime: DateTime.now(),
       customerName: _nameCtrl.text.trim(),
       address: _addrCtrl.text.trim(),
       contactNumber: _contactCtrl.text.trim(),
@@ -86,31 +122,67 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
       chassisNumber: _chassisCtrl.text.trim(),
       engineNumber: _engineCtrl.text.trim(),
       kmReading: _kmCtrl.text.trim(),
+      createdBy: auth.currentUser?.uid ?? '',
+      createdAt: DateTime.now(), updatedAt: DateTime.now(),
     );
 
-    setState(() => _submitting = false);
+    ctrl.setActiveJobCard(draft);
+    Navigator.pushNamed(context, AppRoutes.inventoryChecklist);
+  }
 
-    if (!mounted) return;
-    if (id != null) {
-      final ro = ctrl.activeJobCard?.roNumber ?? '';
-      showSnackBar(context, 'Job Card $ro created!');
-      Navigator.pushReplacementNamed(context, AppRoutes.inventoryChecklist);
+  Future<void> _handleDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Discard changes?', style: AppTextStyles.heading3),
+        content: const Text('Are you sure you want to discard this job card?', style: AppTextStyles.bodySecondary),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    }
+  }
+
+  void _onBack() {
+    if (_step == 1) {
+      setState(() => _step = 0);
     } else {
-      showSnackBar(context, ctrl.error ?? 'Failed to create job card',
-          isError: true);
+      _handleDiscard();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return MainScaffold(
-      title: 'New Job Card',
-      showBack: true,
-      body: Column(children: [
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _onBack();
+      },
+      child: MainScaffold(
+        title: 'New Job Card',
+        showBack: true,
+        actions: [
+          TextButton(
+            onPressed: _handleDiscard,
+            child: const Text('Discard', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+          ),
+        ],
+        body: Column(children: [
         // ── Step indicator ────────────────────────────────────────────────
         _StepBar(currentStep: _step),
 
-        // ── RO info chip ──────────────────────────────────────────────────
+        // ── RO info chip (Hidden for wizard journey) ──────────────────────
+        /*
         Container(
           width: double.infinity,
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -131,6 +203,7 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
             ),
           ]),
         ),
+        */
 
         // ── Form pages (each step has its OWN Form widget) ────────────────
         Expanded(
@@ -199,7 +272,7 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
                       onPressed: _onNext,
                       icon:
                           const Icon(Icons.arrow_forward_ios_rounded, size: 15),
-                      label: const Text('Next — Vehicle Info',
+                      label: const Text('Next',
                           style: TextStyle(fontWeight: FontWeight.w700)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.accent,
@@ -231,7 +304,7 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
                               children: [
                                 Icon(Icons.add_card_rounded, size: 18),
                                 SizedBox(width: 8),
-                                Text('Create Job Card',
+                                Text('Next',
                                     style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 15)),
@@ -242,6 +315,7 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
           ]),
         ),
       ]),
+      ),
     );
   }
 }
@@ -370,14 +444,49 @@ class _VehicleStep extends StatelessWidget {
           // Make + Model side by side
           Row(children: [
             Expanded(
-              child: _Field(
-                label: 'Make *',
-                hint: 'Maruti, Honda...',
-                controller: controllers.make,
-                icon: Icons.branding_watermark_outlined,
-                inputAction: TextInputAction.next,
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Required' : null,
+              child: RawAutocomplete<String>(
+                textEditingController: controllers.make,
+                focusNode: FocusNode(),
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (textEditingValue.text.isEmpty) return const Iterable<String>.empty();
+                  return _carMakes.where((make) => make.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                },
+                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                  return _Field(
+                    label: 'Make *',
+                    hint: 'Maruti, Honda...',
+                    controller: controller,
+                    icon: Icons.branding_watermark_outlined,
+                    inputAction: TextInputAction.next,
+                    focusNode: focusNode,
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4.0,
+                      color: AppColors.surfaceElevated,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width / 2 - 22,
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final option = options.elementAt(index);
+                            return ListTile(
+                              title: Text(option, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                              onTap: () => onSelected(option),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -459,6 +568,7 @@ class _Field extends StatelessWidget {
   final TextInputAction inputAction;
   final List<TextInputFormatter>? inputFormatters;
   final int maxLines;
+  final FocusNode? focusNode;
 
   const _Field({
     required this.label,
@@ -470,6 +580,7 @@ class _Field extends StatelessWidget {
     this.inputAction = TextInputAction.next,
     this.inputFormatters,
     this.maxLines = 1,
+    this.focusNode,
   });
 
   @override
@@ -484,6 +595,7 @@ class _Field extends StatelessWidget {
       const SizedBox(height: 6),
       TextFormField(
         controller: controller,
+        focusNode: focusNode,
         validator: validator,
         keyboardType: keyboardType,
         textInputAction: inputAction,

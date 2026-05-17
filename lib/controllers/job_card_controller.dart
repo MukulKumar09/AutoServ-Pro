@@ -1,6 +1,7 @@
 // lib/controllers/job_card_controller.dart
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/job_card_model.dart';
@@ -17,8 +18,10 @@ class JobCardController extends ChangeNotifier {
   List<JobCardModel> _jobCards     = [];
   List<JobCardModel> _filtered     = [];
   JobCardModel?      _activeCard;
+  Map<String, File>  draftInspectionImages = {};
   bool               _isLoading    = false;
   String?            _error;
+  StreamSubscription? _jobCardsSub;
 
   // Dashboard stats
   int    _todayCars    = 0;
@@ -42,13 +45,18 @@ class JobCardController extends ChangeNotifier {
   void _notify() { if (!_disposed) notifyListeners(); }
 
   // ── Watch all job cards ────────────────────────────────────────────────────
-  void watchJobCards() {
+  void watchJobCards({bool isAdmin = false, String uid = ''}) {
     _isLoading = true;
     _notify();
-    _service.watchAllJobCards().listen(
+    _jobCardsSub?.cancel();
+    _jobCardsSub = _service.watchAllJobCards().listen(
       (cards) {
-        _jobCards  = cards;
-        _filtered  = List.from(cards);
+        if (isAdmin) {
+          _jobCards = cards;
+        } else {
+          _jobCards = cards.where((c) => c.createdBy == uid).toList();
+        }
+        _filtered  = List.from(_jobCards);
         _computeStats();
         _isLoading = false;
         _notify();
@@ -140,6 +148,27 @@ class JobCardController extends ChangeNotifier {
     }
   }
 
+  Future<String?> submitDraftJobCard() async {
+    if (_activeCard == null) return null;
+    _isLoading = true; _error = null; _notify();
+    try {
+      final roNumber = await _service.generateRONumber();
+      final now = DateTime.now();
+      final cardToSave = _activeCard!.copyWith(
+        roNumber: roNumber,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final id = await _service.createJobCard(cardToSave);
+      _activeCard = cardToSave.copyWith(id: id);
+      _isLoading = false; _notify();
+      return id;
+    } catch (e) {
+      _error = e.toString(); _isLoading = false; _notify();
+      return null;
+    }
+  }
+
   Future<bool> updateJobCard(JobCardModel updated) async {
     _error = null;
     try {
@@ -158,7 +187,24 @@ class JobCardController extends ChangeNotifier {
   }
 
   void setActiveJobCard(JobCardModel card) {
-    _activeCard = card; _notify();
+    _activeCard = card;
+    if (card.id.isEmpty) {
+      // It's a new draft, preserve existing draft images if any
+    } else {
+      // It's an existing card, clear draft images
+      draftInspectionImages.clear();
+    }
+    _notify();
+  }
+
+  void setDraftImage(String slot, File file) {
+    draftInspectionImages[slot] = file;
+    _notify();
+  }
+
+  void removeDraftImage(String slot) {
+    draftInspectionImages.remove(slot);
+    _notify();
   }
 
   Future<void> loadJobCard(String id) async {
@@ -231,5 +277,9 @@ class JobCardController extends ChangeNotifier {
   void clearError() { _error = null; _notify(); }
 
   @override
-  void dispose() { _disposed = true; super.dispose(); }
+  void dispose() { 
+    _disposed = true; 
+    _jobCardsSub?.cancel();
+    super.dispose(); 
+  }
 }

@@ -27,8 +27,8 @@ dependencies:
   cached_network_image: ^3.4.1
 
   # PDF & Printing
-  pdf: ^3.11.1
-  printing: ^5.13.2
+  pdf: ^3.12.0
+  printing: ^5.14.3
 
   # Image & File
   image_picker: ^1.1.2

@@ -15,12 +15,8 @@ class VisualInspectionScreen extends StatefulWidget {
   State<VisualInspectionScreen> createState() => _VisualInspectionScreenState();
 }
 
-class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
   final _damageCtrl = TextEditingController();
   final _picker     = ImagePicker();
-  final Map<String, File?> _localFiles  = {};
-  final Map<String, bool>  _uploading   = {};
-  bool _saving = false;
 
   static const _slots = [
     ('front',    Icons.arrow_upward_rounded,           'Front'),
@@ -81,66 +77,83 @@ class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
 
     final xf = await _picker.pickImage(source: src, imageQuality: 70, maxWidth: 1200);
     if (xf == null) return;
-    setState(() => _localFiles[slot] = File(xf.path));
+    if (mounted) {
+      context.read<JobCardController>().setDraftImage(slot, File(xf.path));
+    }
   }
 
-  Future<void> _save({bool goNext = false}) async {
+  void _saveAndNext() {
     final ctrl = context.read<JobCardController>();
     final card = ctrl.activeJobCard;
-    if (card == null) { showSnackBar(context, 'No active job card', isError: true); return; }
-    setState(() => _saving = true);
+    if (card == null) return;
 
-    try {
-      final updatedImages = Map<String, String>.from(card.inspectionImages);
+    final updated = card.copyWith(
+      damageNotes: _damageCtrl.text.trim(),
+    );
+    ctrl.setActiveJobCard(updated);
+    Navigator.pushNamed(context, AppRoutes.mechanicalChecklist);
+  }
 
-      // Upload each local file to Cloudinary
-      for (final entry in _localFiles.entries) {
-        if (entry.value != null) {
-          setState(() => _uploading[entry.key] = true);
-          final url = await CloudinaryService.uploadFile(
-            entry.value!, folder: 'garage/inspections/${card.id}');
-          updatedImages[entry.key] = url;
-          setState(() => _uploading[entry.key] = false);
-        }
-      }
+  void _onBack() {
+    final ctrl = context.read<JobCardController>();
+    if (ctrl.activeJobCard != null) {
+      ctrl.setActiveJobCard(ctrl.activeJobCard!.copyWith(damageNotes: _damageCtrl.text.trim()));
+    }
+    Navigator.pop(context);
+  }
 
-      final updated = card.copyWith(
-        inspectionImages: updatedImages,
-        damageNotes: _damageCtrl.text.trim(),
-        // fuel gauge separate field
-        fuelGaugeImage: updatedImages['fuel'] ?? card.fuelGaugeImage,
-      );
-      await ctrl.updateJobCard(updated);
-      setState(() => _saving = false);
-      if (mounted) {
-        if (goNext) Navigator.pushReplacementNamed(context, AppRoutes.mechanicalChecklist);
-        else showSnackBar(context, 'Inspection photos saved to Cloudinary ✓');
-      }
-    } catch (e) {
-      setState(() => _saving = false);
-      if (mounted) showSnackBar(context, 'Upload failed: $e', isError: true);
+  Future<void> _handleDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Discard changes?', style: AppTextStyles.heading3),
+        content: const Text('Are you sure you want to discard this job card?', style: AppTextStyles.bodySecondary),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final card = context.watch<JobCardController>().activeJobCard;
+    final ctrl = context.watch<JobCardController>();
+    final card = ctrl.activeJobCard;
 
-    return MainScaffold(
-      title: 'Visual Inspection',
-      showBack: true,
-      body: card == null
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.camera_alt_outlined, size: 56, color: AppColors.textMuted),
-              const SizedBox(height: 12),
-              const Text('No active job card', style: AppTextStyles.bodySecondary),
-              const SizedBox(height: 16),
-              PrimaryButton(label: 'Create Job Card', icon: Icons.add,
-                  onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)),
-            ]))
-          : LoadingOverlay(
-              isLoading: _saving,
-              child: SingleChildScrollView(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _onBack();
+      },
+      child: MainScaffold(
+        title: 'Visual Inspection',
+        showBack: true,
+        actions: [
+          TextButton(
+            onPressed: _handleDiscard,
+            child: const Text('Discard', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+          ),
+        ],
+        body: card == null
+            ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.camera_alt_outlined, size: 56, color: AppColors.textMuted),
+                const SizedBox(height: 12),
+                const Text('No active job card', style: AppTextStyles.bodySecondary),
+                const SizedBox(height: 16),
+                PrimaryButton(label: 'Create Job Card', icon: Icons.add,
+                    onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)),
+              ]))
+            : SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // RO info
@@ -176,16 +189,15 @@ class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
                     physics: const NeverScrollableScrollPhysics(),
                     children: _slots.map((slot) {
                       final (key, icon, label) = slot;
-                      final local  = _localFiles[key];
+                      final local  = ctrl.draftInspectionImages[key];
                       final remote = card.inspectionImages[key]
                           ?? (key == 'fuel' ? card.fuelGaugeImage : null);
-                      final isUploading = _uploading[key] == true;
                       return _ImageSlot(
                         label: label, icon: icon,
                         localFile: local, remoteUrl: remote,
-                        isUploading: isUploading,
+                        isUploading: false,
                         onTap: () => _pickImage(key),
-                        onRemove: () => setState(() => _localFiles[key] = null),
+                        onRemove: () => ctrl.removeDraftImage(key),
                       );
                     }).toList(),
                   ),
@@ -215,16 +227,40 @@ class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
 
                   // Buttons
                   Row(children: [
-                    Expanded(child: SecondaryButton(label: 'Save', icon: Icons.save,
-                        onPressed: _saving ? null : () => _save())),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _onBack,
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 15),
+                        label: const Text('Back'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: PrimaryButton(label: 'Next →', isLoading: _saving,
-                        onPressed: () => _save(goNext: true))),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: _saveAndNext,
+                        icon: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                        label: const Text('Next', style: TextStyle(fontWeight: FontWeight.w700)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
                   ]),
                   const SizedBox(height: 20),
                 ]),
               ),
-            ),
+      ),
     );
   }
 }

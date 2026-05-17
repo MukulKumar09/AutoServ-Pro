@@ -14,6 +14,7 @@ import '../views/emi_payment_screen.dart';
 import '../views/authorization_screen.dart';
 import '../views/reports_screen.dart';
 import '../views/staff_management_screen.dart';
+import '../views/summary_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings s) {
@@ -26,6 +27,7 @@ class AppRouter {
       AppRoutes.visualInspection   => const VisualInspectionScreen(),
       AppRoutes.mechanicalChecklist=> const MechanicalChecklistScreen(),
       AppRoutes.demandedJobs       => const DemandedJobsScreen(),
+      AppRoutes.summary            => const SummaryScreen(),
       AppRoutes.labourBilling      => const LabourBillingScreen(),
       AppRoutes.emiPayment         => const EmiPaymentScreen(),
       AppRoutes.authorization      => const AuthorizationScreen(),

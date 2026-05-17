@@ -20,7 +20,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<JobCardController>().watchJobCards();
+      final auth = context.read<AuthController>();
+      context.read<JobCardController>().watchJobCards(
+        isAdmin: auth.isAdmin,
+        uid: auth.currentUser?.uid ?? '',
+      );
     });
   }
 
@@ -57,7 +61,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           : RefreshIndicator(
               color: AppColors.accent,
               backgroundColor: AppColors.surface,
-              onRefresh: () async => context.read<JobCardController>().watchJobCards(),
+              onRefresh: () async {
+                final auth = context.read<AuthController>();
+                context.read<JobCardController>().watchJobCards(
+                  isAdmin: auth.isAdmin,
+                  uid: auth.currentUser?.uid ?? '',
+                );
+              },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),

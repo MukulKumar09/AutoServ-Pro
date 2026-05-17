@@ -16,7 +16,6 @@ class _DemandedJobsScreenState extends State<DemandedJobsScreen> with SingleTick
   late TabController _tab;
   List<TextEditingController> _demCtrls = [];
   List<TextEditingController> _recCtrls = [];
-  bool _saving = false;
 
   @override
   void initState() {
@@ -38,31 +37,70 @@ class _DemandedJobsScreenState extends State<DemandedJobsScreen> with SingleTick
     super.dispose();
   }
 
-  Future<void> _save({bool goNext = false}) async {
+  void _syncJobs() {
     final ctrl = context.read<JobCardController>();
     final card = ctrl.activeJobCard;
-    if (card == null) { showSnackBar(context, 'No active job card', isError: true); return; }
-    setState(() => _saving = true);
+    if (card == null) return;
+    
     final demanded    = _demCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
     final recommended = _recCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
-    final ok = await ctrl.updateJobCard(card.copyWith(demandedJobs: demanded, recommendedJobs: recommended));
-    setState(() => _saving = false);
-    if (ok && mounted) {
-      if (goNext) Navigator.pushReplacementNamed(context, AppRoutes.labourBilling);
-      else showSnackBar(context, 'Jobs saved ✓');
-    } else if (mounted) showSnackBar(context, ctrl.error ?? 'Failed', isError: true);
+    ctrl.setActiveJobCard(card.copyWith(demandedJobs: demanded, recommendedJobs: recommended));
+  }
+
+  void _saveAndNext() {
+    _syncJobs();
+    Navigator.pushNamed(context, AppRoutes.summary);
+  }
+
+  void _onBack() {
+    _syncJobs();
+    Navigator.pop(context);
+  }
+
+  Future<void> _handleDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Discard changes?', style: AppTextStyles.heading3),
+        content: const Text('Are you sure you want to discard this job card?', style: AppTextStyles.bodySecondary),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final card = context.watch<JobCardController>().activeJobCard;
-    return MainScaffold(
-      title: 'Jobs',
-      showBack: true,
-      body: card == null
-          ? Center(child: PrimaryButton(label: 'Create Job Card', icon: Icons.add,
-                onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)))
-          : Column(children: [
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _onBack();
+      },
+      child: MainScaffold(
+        title: 'Jobs',
+        showBack: true,
+        actions: [
+          TextButton(
+            onPressed: _handleDiscard,
+            child: const Text('Discard', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+          ),
+        ],
+        body: card == null
+            ? Center(child: PrimaryButton(label: 'Create Job Card', icon: Icons.add,
+                  onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)))
+            : Column(children: [
               // Tab bar
               Container(
                 color: AppColors.surface,
@@ -117,14 +155,39 @@ class _DemandedJobsScreenState extends State<DemandedJobsScreen> with SingleTick
                     color: AppColors.surface,
                     border: Border(top: BorderSide(color: AppColors.border))),
                 child: Row(children: [
-                  Expanded(child: SecondaryButton(label: 'Save', icon: Icons.save,
-                      onPressed: _saving ? null : () => _save())),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _onBack,
+                      icon: const Icon(Icons.arrow_back_ios_new, size: 15),
+                      label: const Text('Back'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textPrimary,
+                        side: const BorderSide(color: AppColors.border),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(flex: 2, child: PrimaryButton(label: 'Next →',
-                      isLoading: _saving, onPressed: () => _save(goNext: true))),
+                  Expanded(
+                    flex: 2, 
+                    child: ElevatedButton.icon(
+                      onPressed: _saveAndNext,
+                      icon: const Icon(Icons.check_circle_outline, size: 17),
+                      label: const Text('Finalize', style: TextStyle(fontWeight: FontWeight.w700)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
                 ]),
               ),
             ]),
+      ),
     );
   }
 }

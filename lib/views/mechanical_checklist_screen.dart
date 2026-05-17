@@ -15,7 +15,7 @@ class MechanicalChecklistScreen extends StatefulWidget {
 
 class _MechanicalChecklistScreenState extends State<MechanicalChecklistScreen> {
   late MechanicalChecklist _cl;
-  bool _saving = false;
+  final Map<String, TextEditingController> _noteCtrls = {};
 
   static const _items = [
     ('coolantLeakage',   'Coolant Leakage Check',    Icons.water_drop_outlined),
@@ -41,9 +41,20 @@ class _MechanicalChecklistScreenState extends State<MechanicalChecklistScreen> {
     super.initState();
     final card = context.read<JobCardController>().activeJobCard;
     _cl = card?.mechanicalChecklist ?? const MechanicalChecklist();
+    for (final i in _items) {
+      _noteCtrls[i.$1] = TextEditingController(text: _get(i.$1).note);
+    }
   }
 
-  bool _get(String k) => switch (k) {
+  @override
+  void dispose() {
+    for (final c in _noteCtrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  MechanicalItem _get(String k) => switch (k) {
     'coolantLeakage'   => _cl.coolantLeakage,
     'clutchOperation'  => _cl.clutchOperation,
     'transmissionOil'  => _cl.transmissionOil,
@@ -60,10 +71,17 @@ class _MechanicalChecklistScreenState extends State<MechanicalChecklistScreen> {
     'tyreInflation'    => _cl.tyreInflation,
     'switchesCheck'    => _cl.switchesCheck,
     'brakePadLinear'   => _cl.brakePadLinear,
-    _ => false,
+    _ => const MechanicalItem(),
   };
 
-  void _set(String k, bool v) => setState(() { _cl = switch (k) {
+  void _setStatus(String k, String status) {
+    setState(() {
+      final old = _get(k);
+      _set(k, MechanicalItem(status: status, note: old.note));
+    });
+  }
+
+  void _set(String k, MechanicalItem v) => _cl = switch (k) {
     'coolantLeakage'   => _cl.copyWith(coolantLeakage:    v),
     'clutchOperation'  => _cl.copyWith(clutchOperation:   v),
     'transmissionOil'  => _cl.copyWith(transmissionOil:   v),
@@ -81,118 +99,88 @@ class _MechanicalChecklistScreenState extends State<MechanicalChecklistScreen> {
     'switchesCheck'    => _cl.copyWith(switchesCheck:     v),
     'brakePadLinear'   => _cl.copyWith(brakePadLinear:    v),
     _ => _cl,
-  }; });
+  };
 
-  int get _checkedCount => _items.where((i) => _get(i.$1)).length;
+  void _syncNotes() {
+    for (final i in _items) {
+      final key = i.$1;
+      final old = _get(key);
+      _set(key, MechanicalItem(status: old.status, note: _noteCtrls[key]!.text));
+    }
+  }
 
-  Future<void> _save({bool goNext = false}) async {
+  void _saveAndNext() {
     final ctrl = context.read<JobCardController>();
     final card = ctrl.activeJobCard;
-    if (card == null) { showSnackBar(context, 'No active job card', isError: true); return; }
-    setState(() => _saving = true);
-    final ok = await ctrl.updateJobCard(card.copyWith(mechanicalChecklist: _cl));
-    setState(() => _saving = false);
-    if (ok && mounted) {
-      if (goNext) Navigator.pushReplacementNamed(context, AppRoutes.demandedJobs);
-      else showSnackBar(context, 'Mechanical checklist saved ✓');
-    } else if (mounted) showSnackBar(context, ctrl.error ?? 'Failed', isError: true);
+    if (card == null) return;
+
+    _syncNotes();
+    ctrl.setActiveJobCard(card.copyWith(mechanicalChecklist: _cl));
+    Navigator.pushNamed(context, AppRoutes.demandedJobs);
+  }
+
+  void _onBack() {
+    final ctrl = context.read<JobCardController>();
+    if (ctrl.activeJobCard != null) {
+      _syncNotes();
+      ctrl.setActiveJobCard(ctrl.activeJobCard!.copyWith(mechanicalChecklist: _cl));
+    }
+    Navigator.pop(context);
+  }
+
+  Future<void> _handleDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Discard changes?', style: AppTextStyles.heading3),
+        content: const Text('Are you sure you want to discard this job card?', style: AppTextStyles.bodySecondary),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final card = context.watch<JobCardController>().activeJobCard;
-    return MainScaffold(
-      title: 'Mechanical Checklist',
-      showBack: true,
-      body: card == null
-          ? Center(child: PrimaryButton(label: 'Create Job Card', icon: Icons.add,
-                onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)))
-          : LoadingOverlay(
-              isLoading: _saving,
-              child: Column(children: [
-                // Progress
-                Container(
-                  color: AppColors.surface,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Column(children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('$_checkedCount / ${_items.length} checked',
-                          style: AppTextStyles.bodySecondary),
-                      Row(children: [
-                        TextButton(onPressed: () => setState(() {
-                          _cl = MechanicalChecklist(coolantLeakage: true, clutchOperation: true,
-                            transmissionOil: true, handBrake: true, steeringCheck: true,
-                            doorFunctions: true, engineOilReplace: true, brakeClutchFluid: true,
-                            wipersCheck: true, headTailLamp: true, acMovement: true,
-                            suspension: true, batteryWaterLevel: true, tyreInflation: true,
-                            switchesCheck: true, brakePadLinear: true);
-                        }), child: const Text('All', style: TextStyle(color: AppColors.accent, fontSize: 12))),
-                        TextButton(onPressed: () => setState(() => _cl = const MechanicalChecklist()),
-                          child: const Text('Clear', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
-                      ]),
-                    ]),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: _checkedCount / _items.length,
-                        backgroundColor: AppColors.border,
-                        valueColor: AlwaysStoppedAnimation(
-                          _checkedCount == _items.length ? AppColors.success : AppColors.accent),
-                        minHeight: 5,
-                      ),
-                    ),
-                  ]),
-                ),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _onBack();
+      },
+      child: MainScaffold(
+        title: 'Mechanical Checklist',
+        showBack: true,
+        actions: [
+          TextButton(
+            onPressed: _handleDiscard,
+            child: const Text('Discard', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+          ),
+        ],
+        body: card == null
+            ? Center(child: PrimaryButton(label: 'Create Job Card', icon: Icons.add,
+                  onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)))
+            : Column(children: [
 
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.all(12),
                     itemCount: _items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (ctx, i) {
                       final (key, label, icon) = _items[i];
-                      final checked = _get(key);
-                      return GestureDetector(
-                        onTap: () => _set(key, !checked),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: checked ? AppColors.success.withOpacity(0.08) : AppColors.cardBg,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: checked ? AppColors.success.withOpacity(0.4) : AppColors.border,
-                            ),
-                          ),
-                          child: Row(children: [
-                            Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: checked ? AppColors.success.withOpacity(0.15) : AppColors.surfaceElevated,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(icon, size: 17,
-                                  color: checked ? AppColors.success : AppColors.textMuted),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(child: Text(label, style: TextStyle(
-                              color: checked ? AppColors.textPrimary : AppColors.textSecondary,
-                              fontSize: 14, fontWeight: checked ? FontWeight.w600 : FontWeight.w400,
-                            ))),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              width: 24, height: 24,
-                              decoration: BoxDecoration(
-                                color: checked ? AppColors.success : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: checked ? AppColors.success : AppColors.border, width: 1.5),
-                              ),
-                              child: checked ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
-                            ),
-                          ]),
-                        ),
-                      );
+                      return _buildItemRow(key, label, icon);
                     },
                   ),
                 ),
@@ -204,15 +192,115 @@ class _MechanicalChecklistScreenState extends State<MechanicalChecklistScreen> {
                     border: Border(top: BorderSide(color: AppColors.border)),
                   ),
                   child: Row(children: [
-                    Expanded(child: SecondaryButton(label: 'Save', icon: Icons.save,
-                        onPressed: _saving ? null : () => _save())),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _onBack,
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 15),
+                        label: const Text('Back'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(flex: 2, child: PrimaryButton(label: 'Next →',
-                        isLoading: _saving, onPressed: () => _save(goNext: true))),
+                    Expanded(
+                      flex: 2, 
+                      child: ElevatedButton.icon(
+                        onPressed: _saveAndNext,
+                        icon: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                        label: const Text('Next', style: TextStyle(fontWeight: FontWeight.w700)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
                   ]),
                 ),
               ]),
+      ),
+    );
+  }
+
+  Widget _buildItemRow(String key, String label, IconData icon) {
+    final item = _get(key);
+    final ctrl = _noteCtrls[key]!;
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(icon, size: 16, color: AppColors.textSecondary),
             ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13))),
+          ]),
+          const SizedBox(height: 12),
+          // Bad / Normal / Good Toggle
+          Row(children: [
+            Expanded(child: _StatusBtn('Bad', AppColors.error, item.status == 'Bad', () => _setStatus(key, 'Bad'))),
+            const SizedBox(width: 8),
+            Expanded(child: _StatusBtn('Normal', AppColors.info, item.status == 'Normal', () => _setStatus(key, 'Normal'))),
+            const SizedBox(width: 8),
+            Expanded(child: _StatusBtn('Good', AppColors.success, item.status == 'Good', () => _setStatus(key, 'Good'))),
+          ]),
+          if (item.status == 'Bad') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              style: AppTextStyles.body,
+              decoration: InputDecoration(
+                hintText: 'Specify exact issue...',
+                hintStyle: AppTextStyles.caption,
+                filled: true, fillColor: AppColors.surfaceElevated,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.error, width: 1.5)),
+              ),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+
+  Widget _StatusBtn(String label, Color color, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color.withOpacity(0.15) : AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isActive ? color : AppColors.border),
+        ),
+        child: Text(label, style: TextStyle(
+          color: isActive ? color : AppColors.textSecondary,
+          fontSize: 12, fontWeight: FontWeight.w700,
+        )),
+      ),
     );
   }
 }

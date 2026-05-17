@@ -95,6 +95,7 @@ class InventoryChecklist {
   final bool fuelCap;
   final bool hornLowHigh;
   final String others;
+  final bool helmet;
 
   const InventoryChecklist({
     this.keyRemote = false,
@@ -123,6 +124,7 @@ class InventoryChecklist {
     this.fuelCap = false,
     this.hornLowHigh = false,
     this.others = '',
+    this.helmet = false,
   });
 
   factory InventoryChecklist.fromMap(Map<String, dynamic> map) =>
@@ -153,6 +155,7 @@ class InventoryChecklist {
         fuelCap: map['fuelCap'] ?? false,
         hornLowHigh: map['hornLowHigh'] ?? false,
         others: map['others'] ?? '',
+        helmet: map['helmet'] ?? false,
       );
 
   Map<String, dynamic> toMap() => {
@@ -182,6 +185,7 @@ class InventoryChecklist {
         'fuelCap': fuelCap,
         'hornLowHigh': hornLowHigh,
         'others': others,
+        'helmet': helmet,
       };
 
   InventoryChecklist copyWith({
@@ -211,6 +215,7 @@ class InventoryChecklist {
     bool? fuelCap,
     bool? hornLowHigh,
     String? others,
+    bool? helmet,
   }) =>
       InventoryChecklist(
         keyRemote: keyRemote ?? this.keyRemote,
@@ -239,103 +244,126 @@ class InventoryChecklist {
         fuelCap: fuelCap ?? this.fuelCap,
         hornLowHigh: hornLowHigh ?? this.hornLowHigh,
         others: others ?? this.others,
+        helmet: helmet ?? this.helmet,
       );
 }
 
 /// Mechanical service checklist
+class MechanicalItem {
+  final String status; // 'Bad', 'Normal', 'Good'
+  final String note;
+
+  const MechanicalItem({this.status = 'Normal', this.note = ''});
+
+  factory MechanicalItem.fromDynamic(dynamic val) {
+    if (val == null) return const MechanicalItem();
+    if (val is bool) return MechanicalItem(status: val ? 'Bad' : 'Normal');
+    if (val is Map) {
+      return MechanicalItem(
+        status: val['status'] ?? 'Normal',
+        note: val['note'] ?? '',
+      );
+    }
+    return const MechanicalItem();
+  }
+
+  Map<String, dynamic> toMap() => {'status': status, 'note': note};
+}
+
+/// Mechanical service checklist
 class MechanicalChecklist {
-  final bool coolantLeakage;
-  final bool clutchOperation;
-  final bool transmissionOil;
-  final bool handBrake;
-  final bool steeringCheck;
-  final bool doorFunctions;
-  final bool engineOilReplace;
-  final bool brakeClutchFluid;
-  final bool wipersCheck;
-  final bool headTailLamp;
-  final bool acMovement;
-  final bool suspension;
-  final bool batteryWaterLevel;
-  final bool tyreInflation;
-  final bool switchesCheck;
-  final bool brakePadLinear;
+  final MechanicalItem coolantLeakage;
+  final MechanicalItem clutchOperation;
+  final MechanicalItem transmissionOil;
+  final MechanicalItem handBrake;
+  final MechanicalItem steeringCheck;
+  final MechanicalItem doorFunctions;
+  final MechanicalItem engineOilReplace;
+  final MechanicalItem brakeClutchFluid;
+  final MechanicalItem wipersCheck;
+  final MechanicalItem headTailLamp;
+  final MechanicalItem acMovement;
+  final MechanicalItem suspension;
+  final MechanicalItem batteryWaterLevel;
+  final MechanicalItem tyreInflation;
+  final MechanicalItem switchesCheck;
+  final MechanicalItem brakePadLinear;
 
   const MechanicalChecklist({
-    this.coolantLeakage = false,
-    this.clutchOperation = false,
-    this.transmissionOil = false,
-    this.handBrake = false,
-    this.steeringCheck = false,
-    this.doorFunctions = false,
-    this.engineOilReplace = false,
-    this.brakeClutchFluid = false,
-    this.wipersCheck = false,
-    this.headTailLamp = false,
-    this.acMovement = false,
-    this.suspension = false,
-    this.batteryWaterLevel = false,
-    this.tyreInflation = false,
-    this.switchesCheck = false,
-    this.brakePadLinear = false,
+    this.coolantLeakage = const MechanicalItem(),
+    this.clutchOperation = const MechanicalItem(),
+    this.transmissionOil = const MechanicalItem(),
+    this.handBrake = const MechanicalItem(),
+    this.steeringCheck = const MechanicalItem(),
+    this.doorFunctions = const MechanicalItem(),
+    this.engineOilReplace = const MechanicalItem(),
+    this.brakeClutchFluid = const MechanicalItem(),
+    this.wipersCheck = const MechanicalItem(),
+    this.headTailLamp = const MechanicalItem(),
+    this.acMovement = const MechanicalItem(),
+    this.suspension = const MechanicalItem(),
+    this.batteryWaterLevel = const MechanicalItem(),
+    this.tyreInflation = const MechanicalItem(),
+    this.switchesCheck = const MechanicalItem(),
+    this.brakePadLinear = const MechanicalItem(),
   });
 
   factory MechanicalChecklist.fromMap(Map<String, dynamic> map) =>
       MechanicalChecklist(
-        coolantLeakage: map['coolantLeakage'] ?? false,
-        clutchOperation: map['clutchOperation'] ?? false,
-        transmissionOil: map['transmissionOil'] ?? false,
-        handBrake: map['handBrake'] ?? false,
-        steeringCheck: map['steeringCheck'] ?? false,
-        doorFunctions: map['doorFunctions'] ?? false,
-        engineOilReplace: map['engineOilReplace'] ?? false,
-        brakeClutchFluid: map['brakeClutchFluid'] ?? false,
-        wipersCheck: map['wipersCheck'] ?? false,
-        headTailLamp: map['headTailLamp'] ?? false,
-        acMovement: map['acMovement'] ?? false,
-        suspension: map['suspension'] ?? false,
-        batteryWaterLevel: map['batteryWaterLevel'] ?? false,
-        tyreInflation: map['tyreInflation'] ?? false,
-        switchesCheck: map['switchesCheck'] ?? false,
-        brakePadLinear: map['brakePadLinear'] ?? false,
+        coolantLeakage: MechanicalItem.fromDynamic(map['coolantLeakage']),
+        clutchOperation: MechanicalItem.fromDynamic(map['clutchOperation']),
+        transmissionOil: MechanicalItem.fromDynamic(map['transmissionOil']),
+        handBrake: MechanicalItem.fromDynamic(map['handBrake']),
+        steeringCheck: MechanicalItem.fromDynamic(map['steeringCheck']),
+        doorFunctions: MechanicalItem.fromDynamic(map['doorFunctions']),
+        engineOilReplace: MechanicalItem.fromDynamic(map['engineOilReplace']),
+        brakeClutchFluid: MechanicalItem.fromDynamic(map['brakeClutchFluid']),
+        wipersCheck: MechanicalItem.fromDynamic(map['wipersCheck']),
+        headTailLamp: MechanicalItem.fromDynamic(map['headTailLamp']),
+        acMovement: MechanicalItem.fromDynamic(map['acMovement']),
+        suspension: MechanicalItem.fromDynamic(map['suspension']),
+        batteryWaterLevel: MechanicalItem.fromDynamic(map['batteryWaterLevel']),
+        tyreInflation: MechanicalItem.fromDynamic(map['tyreInflation']),
+        switchesCheck: MechanicalItem.fromDynamic(map['switchesCheck']),
+        brakePadLinear: MechanicalItem.fromDynamic(map['brakePadLinear']),
       );
 
   Map<String, dynamic> toMap() => {
-        'coolantLeakage': coolantLeakage,
-        'clutchOperation': clutchOperation,
-        'transmissionOil': transmissionOil,
-        'handBrake': handBrake,
-        'steeringCheck': steeringCheck,
-        'doorFunctions': doorFunctions,
-        'engineOilReplace': engineOilReplace,
-        'brakeClutchFluid': brakeClutchFluid,
-        'wipersCheck': wipersCheck,
-        'headTailLamp': headTailLamp,
-        'acMovement': acMovement,
-        'suspension': suspension,
-        'batteryWaterLevel': batteryWaterLevel,
-        'tyreInflation': tyreInflation,
-        'switchesCheck': switchesCheck,
-        'brakePadLinear': brakePadLinear,
+        'coolantLeakage': coolantLeakage.toMap(),
+        'clutchOperation': clutchOperation.toMap(),
+        'transmissionOil': transmissionOil.toMap(),
+        'handBrake': handBrake.toMap(),
+        'steeringCheck': steeringCheck.toMap(),
+        'doorFunctions': doorFunctions.toMap(),
+        'engineOilReplace': engineOilReplace.toMap(),
+        'brakeClutchFluid': brakeClutchFluid.toMap(),
+        'wipersCheck': wipersCheck.toMap(),
+        'headTailLamp': headTailLamp.toMap(),
+        'acMovement': acMovement.toMap(),
+        'suspension': suspension.toMap(),
+        'batteryWaterLevel': batteryWaterLevel.toMap(),
+        'tyreInflation': tyreInflation.toMap(),
+        'switchesCheck': switchesCheck.toMap(),
+        'brakePadLinear': brakePadLinear.toMap(),
       };
 
   MechanicalChecklist copyWith({
-    bool? coolantLeakage,
-    bool? clutchOperation,
-    bool? transmissionOil,
-    bool? handBrake,
-    bool? steeringCheck,
-    bool? doorFunctions,
-    bool? engineOilReplace,
-    bool? brakeClutchFluid,
-    bool? wipersCheck,
-    bool? headTailLamp,
-    bool? acMovement,
-    bool? suspension,
-    bool? batteryWaterLevel,
-    bool? tyreInflation,
-    bool? switchesCheck,
-    bool? brakePadLinear,
+    MechanicalItem? coolantLeakage,
+    MechanicalItem? clutchOperation,
+    MechanicalItem? transmissionOil,
+    MechanicalItem? handBrake,
+    MechanicalItem? steeringCheck,
+    MechanicalItem? doorFunctions,
+    MechanicalItem? engineOilReplace,
+    MechanicalItem? brakeClutchFluid,
+    MechanicalItem? wipersCheck,
+    MechanicalItem? headTailLamp,
+    MechanicalItem? acMovement,
+    MechanicalItem? suspension,
+    MechanicalItem? batteryWaterLevel,
+    MechanicalItem? tyreInflation,
+    MechanicalItem? switchesCheck,
+    MechanicalItem? brakePadLinear,
   }) =>
       MechanicalChecklist(
         coolantLeakage: coolantLeakage ?? this.coolantLeakage,

@@ -25,6 +25,7 @@ class _InventoryChecklistScreenState extends State<InventoryChecklistScreen> {
   final _fogCtrl       = TextEditingController();
   final _othersCtrl    = TextEditingController();
   bool _saving = false;
+  String _vehicleType = 'Four-Wheeler';
 
   @override
   void initState() {
@@ -56,32 +57,73 @@ class _InventoryChecklistScreenState extends State<InventoryChecklistScreen> {
     sideMirror: int.tryParse(_mirrorCtrl.text)    ?? 0,
     fogLamp:    int.tryParse(_fogCtrl.text)        ?? 0,
     others:     _othersCtrl.text,
+    // Note: helmet is already updated via its inline setter if toggled
   );
 
-  Future<void> _save({bool goNext = false}) async {
+  Future<void> _saveAndNext() async {
     final ctrl = context.read<JobCardController>();
     final card = ctrl.activeJobCard;
-    if (card == null) { showSnackBar(context, 'No active job card', isError: true); return; }
-    setState(() => _saving = true);
-    final ok = await ctrl.updateJobCard(card.copyWith(inventoryChecklist: _build()));
-    setState(() => _saving = false);
-    if (ok && mounted) {
-      if (goNext) Navigator.pushReplacementNamed(context, AppRoutes.visualInspection);
-      else showSnackBar(context, 'Inventory saved ✓');
-    } else if (mounted) showSnackBar(context, ctrl.error ?? 'Failed', isError: true);
+    if (card == null) return;
+    
+    // In-memory update
+    ctrl.setActiveJobCard(card.copyWith(inventoryChecklist: _build()));
+    Navigator.pushNamed(context, AppRoutes.visualInspection);
+  }
+
+  Future<void> _handleDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Discard changes?', style: AppTextStyles.heading3),
+        content: const Text('Are you sure you want to discard this job card?', style: AppTextStyles.bodySecondary),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    }
+  }
+
+  void _onBack() {
+    // In-memory update before popping back
+    final ctrl = context.read<JobCardController>();
+    if (ctrl.activeJobCard != null) {
+      ctrl.setActiveJobCard(ctrl.activeJobCard!.copyWith(inventoryChecklist: _build()));
+    }
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final card = context.watch<JobCardController>().activeJobCard;
-    return MainScaffold(
-      title: 'Inventory Checklist',
-      showBack: true,
-      body: card == null
-          ? _noCard()
-          : LoadingOverlay(
-              isLoading: _saving,
-              child: Column(children: [
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _onBack();
+      },
+      child: MainScaffold(
+        title: 'Inventory Checklist',
+        showBack: true,
+        actions: [
+          TextButton(
+            onPressed: _handleDiscard,
+            child: const Text('Discard', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+          ),
+        ],
+        body: card == null
+            ? _noCard()
+            : LoadingOverlay(
+                isLoading: _saving,
+                child: Column(children: [
                 // RO chip
                 Container(
                   color: AppColors.surface,
@@ -97,54 +139,83 @@ class _InventoryChecklistScreenState extends State<InventoryChecklistScreen> {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      // Vehicle Type Segmented Control
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(children: [
+                          Expanded(child: _SegmentBtn('Two-Wheeler', _vehicleType == 'Two-Wheeler', () => setState(() => _vehicleType = 'Two-Wheeler'))),
+                          Expanded(child: _SegmentBtn('Four-Wheeler', _vehicleType == 'Four-Wheeler', () => setState(() => _vehicleType = 'Four-Wheeler'))),
+                        ]),
+                      ),
+                      const SizedBox(height: 20),
+
                       _Section('Accessories & Interior', children: [
                         _Check('Key Remote', _checklist.keyRemote,
                             (v) => setState(() => _checklist = _checklist.copyWith(keyRemote: v))),
-                        _Check('Audio System with Face Plate', _checklist.audioSystem,
-                            (v) => setState(() => _checklist = _checklist.copyWith(audioSystem: v))),
-                        _Check('CD/DVD Changer', _checklist.cdDvdChanger,
-                            (v) => setState(() => _checklist = _checklist.copyWith(cdDvdChanger: v))),
-                        _NumRow('Speakers (Nos)', _speakersCtrl),
+                        if (_vehicleType == 'Four-Wheeler') ...[
+                          _Check('Audio System with Face Plate', _checklist.audioSystem,
+                              (v) => setState(() => _checklist = _checklist.copyWith(audioSystem: v))),
+                          _Check('CD/DVD Changer', _checklist.cdDvdChanger,
+                              (v) => setState(() => _checklist = _checklist.copyWith(cdDvdChanger: v))),
+                          _NumRow('Speakers (Nos)', _speakersCtrl),
+                        ],
                         _Check('Owner Manual', _checklist.ownerManual,
                             (v) => setState(() => _checklist = _checklist.copyWith(ownerManual: v))),
-                        _Check('Mobile Charger', _checklist.mobileCharger,
-                            (v) => setState(() => _checklist = _checklist.copyWith(mobileCharger: v))),
-                        _Check('Key Chain', _checklist.keyChain,
-                            (v) => setState(() => _checklist = _checklist.copyWith(keyChain: v))),
-                        _NumRow('Doll/Idol (Nos)', _dollCtrl),
-                        _Check('Air Freshener', _checklist.airFreshener,
-                            (v) => setState(() => _checklist = _checklist.copyWith(airFreshener: v))),
-                        _Toggle('Upholstery', 'Torn/Broken', _checklist.upholsteryTornBroken,
-                            (v) => setState(() => _checklist = _checklist.copyWith(upholsteryTornBroken: v))),
-                        _NumRow('Floor Mat (Nos)', _floorMatCtrl),
+                        if (_vehicleType == 'Four-Wheeler') ...[
+                          _Check('Mobile Charger', _checklist.mobileCharger,
+                              (v) => setState(() => _checklist = _checklist.copyWith(mobileCharger: v))),
+                          _Check('Key Chain', _checklist.keyChain,
+                              (v) => setState(() => _checklist = _checklist.copyWith(keyChain: v))),
+                          _NumRow('Doll/Idol (Nos)', _dollCtrl),
+                          _Check('Air Freshener', _checklist.airFreshener,
+                              (v) => setState(() => _checklist = _checklist.copyWith(airFreshener: v))),
+                          _Toggle('Upholstery', 'Torn/Broken', _checklist.upholsteryTornBroken,
+                              (v) => setState(() => _checklist = _checklist.copyWith(upholsteryTornBroken: v))),
+                          _NumRow('Floor Mat (Nos)', _floorMatCtrl),
+                        ],
                         _TextRow('Seat Covers', _seatCtrl),
                       ]),
                       const SizedBox(height: 16),
                       _Section('Safety & Exterior', children: [
-                        _Check('Jack & Handle', _checklist.jackHandle,
-                            (v) => setState(() => _checklist = _checklist.copyWith(jackHandle: v))),
-                        _Toggle('Underbody', 'Scratches/Damages', _checklist.underbodyDamages,
-                            (v) => setState(() => _checklist = _checklist.copyWith(underbodyDamages: v))),
-                        _Check('Boot Mat', _checklist.bootMat,
-                            (v) => setState(() => _checklist = _checklist.copyWith(bootMat: v))),
+                        if (_vehicleType == 'Four-Wheeler') ...[
+                          _Check('Jack & Handle', _checklist.jackHandle,
+                              (v) => setState(() => _checklist = _checklist.copyWith(jackHandle: v))),
+                          _Toggle('Underbody', 'Scratches/Damages', _checklist.underbodyDamages,
+                              (v) => setState(() => _checklist = _checklist.copyWith(underbodyDamages: v))),
+                          _Check('Boot Mat', _checklist.bootMat,
+                              (v) => setState(() => _checklist = _checklist.copyWith(bootMat: v))),
+                        ],
                         _Check('First Aid Kit', _checklist.firstAidKit,
                             (v) => setState(() => _checklist = _checklist.copyWith(firstAidKit: v))),
                         _TextRow('Tool List', _toolCtrl),
-                        _Check('Wheel Cover/Cap', _checklist.wheelCoverCap,
-                            (v) => setState(() => _checklist = _checklist.copyWith(wheelCoverCap: v))),
-                        _Check('Mud Flaps', _checklist.mudFlaps,
-                            (v) => setState(() => _checklist = _checklist.copyWith(mudFlaps: v))),
-                        _Check('Spare Wheel', _checklist.spareWheel,
-                            (v) => setState(() => _checklist = _checklist.copyWith(spareWheel: v))),
+                        if (_vehicleType == 'Four-Wheeler') ...[
+                          _Check('Wheel Cover/Cap', _checklist.wheelCoverCap,
+                              (v) => setState(() => _checklist = _checklist.copyWith(wheelCoverCap: v))),
+                          _Check('Mud Flaps', _checklist.mudFlaps,
+                              (v) => setState(() => _checklist = _checklist.copyWith(mudFlaps: v))),
+                          _Check('Spare Wheel', _checklist.spareWheel,
+                              (v) => setState(() => _checklist = _checklist.copyWith(spareWheel: v))),
+                        ],
                         _NumRow('Side Mirror (Nos)', _mirrorCtrl),
-                        _NumRow('Fog Lamp (Nos)', _fogCtrl),
-                        _Check('Wiper Arms/Blades', _checklist.wiperArmsBlades,
-                            (v) => setState(() => _checklist = _checklist.copyWith(wiperArmsBlades: v))),
+                        if (_vehicleType == 'Four-Wheeler') ...[
+                          _NumRow('Fog Lamp (Nos)', _fogCtrl),
+                          _Check('Wiper Arms/Blades', _checklist.wiperArmsBlades,
+                              (v) => setState(() => _checklist = _checklist.copyWith(wiperArmsBlades: v))),
+                        ],
+                        if (_vehicleType == 'Two-Wheeler') ...[
+                          _Check('Helmet', _checklist.helmet,
+                              (v) => setState(() => _checklist = _checklist.copyWith(helmet: v))),
+                        ],
                         _Check('Fuel Cap', _checklist.fuelCap,
                             (v) => setState(() => _checklist = _checklist.copyWith(fuelCap: v))),
                         _Toggle('Horns', 'Low/High Tone', _checklist.hornLowHigh,
                             (v) => setState(() => _checklist = _checklist.copyWith(hornLowHigh: v))),
-                        _TextRow('Others', _othersCtrl),
+                        _MultilineRow('Others', _othersCtrl),
                       ]),
                       const SizedBox(height: 80),
                     ]),
@@ -158,17 +229,59 @@ class _InventoryChecklistScreenState extends State<InventoryChecklistScreen> {
                     border: Border(top: BorderSide(color: AppColors.border)),
                   ),
                   child: Row(children: [
-                    Expanded(child: SecondaryButton(label: 'Save', icon: Icons.save,
-                        onPressed: _saving ? null : () => _save())),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _onBack,
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 15),
+                        label: const Text('Back'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(flex: 2, child: PrimaryButton(label: 'Next →',
-                        isLoading: _saving, onPressed: () => _save(goNext: true))),
+                    Expanded(
+                      flex: 2, 
+                      child: ElevatedButton.icon(
+                        onPressed: _saveAndNext,
+                        icon: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                        label: const Text('Next', style: TextStyle(fontWeight: FontWeight.w700)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
                   ]),
                 ),
               ]),
             ),
+      ),
     );
   }
+
+  Widget _SegmentBtn(String label, bool isActive, VoidCallback onTap) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: isActive ? [BoxShadow(color: AppColors.accent.withOpacity(0.2), blurRadius: 8)] : [],
+      ),
+      alignment: Alignment.center,
+      child: Text(label, style: TextStyle(
+        fontSize: 13, fontWeight: FontWeight.w700,
+        color: isActive ? Colors.black : AppColors.textSecondary,
+      )),
+    ),
+  );
 
   Widget _noCard() => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
     const Icon(Icons.assignment_outlined, size: 56, color: AppColors.textMuted),
@@ -249,6 +362,27 @@ class _InventoryChecklistScreenState extends State<InventoryChecklistScreen> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         ),
       )),
+    ]),
+  );
+
+  Widget _MultilineRow(String label, TextEditingController ctrl) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: AppTextStyles.body),
+      const SizedBox(height: 8),
+      TextField(
+        controller: ctrl, 
+        style: AppTextStyles.body,
+        maxLines: 3,
+        decoration: InputDecoration(
+          hintText: 'Describe any other items or damages...', hintStyle: AppTextStyles.caption,
+          filled: true, fillColor: AppColors.surfaceElevated,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.accent, width: 1.5)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        ),
+      ),
     ]),
   );
 

@@ -1,7 +1,9 @@
 // lib/views/customer_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../constants/app_constants.dart';
+import '../controllers/auth_controller.dart';
 import '../controllers/job_card_controller.dart';
 import '../models/job_card_model.dart';
 import '../widgets/app_widgets.dart';
@@ -16,39 +18,64 @@ class CustomerHistoryScreen extends StatefulWidget {
 
 class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
   final _searchCtrl  = TextEditingController();
-  String _searchType = 'registration';
   List<JobCardModel> _results = [];
   bool _searching   = false;
-  bool _pendingOnly = false;
   String? _expandedId;
+  Timer? _debounce;
 
   @override
-  void dispose() { _searchCtrl.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _search();
+    });
+  }
 
-  Future<void> _search() async {
-    final q = _searchCtrl.text.trim();
-    if (q.isEmpty && !_pendingOnly) {
-      // show all
-      setState(() => _results = context.read<JobCardController>().allJobCards);
+  @override
+  void dispose() { 
+    _searchCtrl.dispose(); 
+    _debounce?.cancel();
+    super.dispose(); 
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _search();
+    });
+  }
+
+  void _search() {
+    final allCards = context.read<JobCardController>().allJobCards;
+    final q = _searchCtrl.text.trim().toLowerCase();
+    
+    if (q.isEmpty) {
+      setState(() {
+        _results = List.from(allCards)..sort((a, b) => b.entryDate.compareTo(a.entryDate));
+        _searching = false;
+      });
       return;
     }
+    
     setState(() => _searching = true);
-    final ctrl = context.read<JobCardController>();
-    final r = await ctrl.searchCards(
-      regNumber: _searchType == 'registration' ? q : null,
-      contact:   _searchType == 'contact'      ? q : null,
-      name:      _searchType == 'name'          ? q : null,
-      pendingOnly: _pendingOnly ? true : null,
-    );
-    setState(() { _results = r; _searching = false; });
+    
+    setState(() {
+      _results = allCards.where((c) {
+        return c.registrationNumber.toLowerCase().contains(q) ||
+               c.customerName.toLowerCase().contains(q);
+      }).toList()..sort((a, b) => b.entryDate.compareTo(a.entryDate));
+      _searching = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final totalPending = _results.fold<double>(0, (s, c) => s + (c.hasBalance ? c.balanceDue : 0));
 
+    final auth = context.watch<AuthController>();
+
     return MainScaffold(
-      title: 'Customer History',
+      title: auth.isAdmin ? 'All Job Cards' : 'Your Job Cards',
       showBack: true,
       body: Column(children: [
         // Search bar
@@ -56,30 +83,22 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
           color: AppColors.surface,
           padding: const EdgeInsets.all(12),
           child: Column(children: [
-            // Type selector
-            Row(children: [
-              _TypeChip('Reg. No.', 'registration'),
-              const SizedBox(width: 8),
-              _TypeChip('Contact', 'contact'),
-              const SizedBox(width: 8),
-              _TypeChip('Name', 'name'),
-            ]),
-            const SizedBox(height: 10),
             Row(children: [
               Expanded(
                 child: TextField(
                   controller: _searchCtrl,
                   style: AppTextStyles.body,
                   textInputAction: TextInputAction.search,
+                  onChanged: _onSearchChanged,
                   onSubmitted: (_) => _search(),
                   decoration: InputDecoration(
-                    hintText: 'Search by ${_searchType == 'registration' ? 'vehicle number' : _searchType}...',
+                    hintText: 'Search Customer Name/Vehicle Number',
                     hintStyle: AppTextStyles.caption,
                     prefixIcon: const Icon(Icons.search, color: AppColors.textMuted, size: 20),
                     suffixIcon: _searchCtrl.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear, size: 18, color: AppColors.textMuted),
-                            onPressed: () { _searchCtrl.clear(); setState(() => _results = []); })
+                            onPressed: () { _searchCtrl.clear(); _search(); })
                         : null,
                     filled: true, fillColor: AppColors.surfaceElevated,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
@@ -91,41 +110,6 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _search,
-                child: Container(
-                  padding: const EdgeInsets.all(13),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.search, color: Colors.black, size: 20),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            // Filters
-            Row(children: [
-              _FilterPill(
-                label: 'Pending Only',
-                isActive: _pendingOnly,
-                color: AppColors.error,
-                onTap: () { setState(() => _pendingOnly = !_pendingOnly); _search(); },
-              ),
-              const SizedBox(width: 8),
-              _FilterPill(
-                label: 'All Cards',
-                isActive: false,
-                color: AppColors.info,
-                onTap: () {
-                  _searchCtrl.clear();
-                  setState(() {
-                    _pendingOnly = false;
-                    _results = context.read<JobCardController>().allJobCards;
-                  });
-                },
               ),
             ]),
           ]),
@@ -196,45 +180,6 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     );
   }
 
-  Widget _TypeChip(String label, String type) => GestureDetector(
-    onTap: () => setState(() => _searchType = type),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: _searchType == type ? AppColors.accent.withOpacity(0.15) : AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _searchType == type ? AppColors.accent : AppColors.border),
-      ),
-      child: Text(label, style: TextStyle(
-        fontSize: 12, fontWeight: FontWeight.w600,
-        color: _searchType == type ? AppColors.accent : AppColors.textSecondary,
-      )),
-    ),
-  );
-}
-
-class _FilterPill extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final Color color;
-  final VoidCallback onTap;
-  const _FilterPill({required this.label, required this.isActive, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: isActive ? color.withOpacity(0.15) : AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isActive ? color : AppColors.border),
-      ),
-      child: Text(label, style: TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w600,
-          color: isActive ? color : AppColors.textSecondary)),
-    ),
-  );
 }
 
 class _HistoryCard extends StatelessWidget {

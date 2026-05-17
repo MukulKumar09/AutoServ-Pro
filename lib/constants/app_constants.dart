@@ -96,6 +96,7 @@ class AppRoutes {
   static const String visualInspection = '/visual-inspection';
   static const String mechanicalChecklist = '/mechanical-checklist';
   static const String demandedJobs = '/demanded-jobs';
+  static const String summary = '/summary';
   static const String labourBilling = '/labour-billing';
   static const String emiPayment = '/emi-payment';
   static const String authorization = '/authorization';
