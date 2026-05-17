@@ -632,6 +632,8 @@ class _Field extends StatelessWidget {
       ),
     ]);
   }
+}
+
 class _SectionLabel extends StatelessWidget {
   final String label;
   final IconData icon;

@@ -263,6 +263,7 @@ class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
                   const SizedBox(height: 20),
                 ]),
               ),
+            ),
             ]),
       ),
     );
