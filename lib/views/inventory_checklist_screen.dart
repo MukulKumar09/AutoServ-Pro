@@ -7,6 +7,7 @@ import '../controllers/job_card_controller.dart';
 import '../models/job_card_model.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/main_scaffold.dart';
+import '../widgets/wizard_step_bar.dart';
 
 class InventoryChecklistScreen extends StatefulWidget {
   const InventoryChecklistScreen({super.key});

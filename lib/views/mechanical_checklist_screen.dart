@@ -6,6 +6,7 @@ import '../controllers/job_card_controller.dart';
 import '../models/job_card_model.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/main_scaffold.dart';
+import '../widgets/wizard_step_bar.dart';
 
 class MechanicalChecklistScreen extends StatefulWidget {
   const MechanicalChecklistScreen({super.key});
@@ -172,7 +173,7 @@ class _MechanicalChecklistScreenState extends State<MechanicalChecklistScreen> {
             ? Center(child: PrimaryButton(label: 'Create Job Card', icon: Icons.add,
                   onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)))
             : Column(children: [
-
+                const WizardStepBar(currentStep: 4),
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.all(12),

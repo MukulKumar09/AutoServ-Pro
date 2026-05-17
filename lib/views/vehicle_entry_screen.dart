@@ -8,6 +8,7 @@ import '../controllers/job_card_controller.dart';
 import '../models/job_card_model.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/main_scaffold.dart';
+import '../widgets/wizard_step_bar.dart';
 
 class VehicleEntryScreen extends StatefulWidget {
   const VehicleEntryScreen({super.key});
@@ -180,7 +181,7 @@ class _VehicleEntryScreenState extends State<VehicleEntryScreen> {
         ],
         body: Column(children: [
         // ── Step indicator ────────────────────────────────────────────────
-        _StepBar(currentStep: _step),
+        WizardStepBar(currentStep: _step),
 
         // ── RO info chip (Hidden for wizard journey) ──────────────────────
         /*
@@ -631,98 +632,6 @@ class _Field extends StatelessWidget {
       ),
     ]);
   }
-}
-
-// ── Step indicator bar ────────────────────────────────────────────────────────
-class _StepBar extends StatelessWidget {
-  final int currentStep;
-  const _StepBar({required this.currentStep});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Column(children: [
-        Row(children: [
-          // Step 1 circle
-          _StepCircle(
-              number: 1,
-              label: 'Customer Info',
-              isActive: currentStep == 0,
-              isDone: currentStep > 0),
-          // Line
-          Expanded(
-              child: Container(
-            height: 2,
-            margin: const EdgeInsets.only(bottom: 18),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                currentStep > 0 ? AppColors.accent : AppColors.border,
-                currentStep > 0 ? AppColors.accent : AppColors.border,
-              ]),
-              borderRadius: BorderRadius.circular(1),
-            ),
-          )),
-          // Step 2 circle
-          _StepCircle(
-              number: 2,
-              label: 'Vehicle Info',
-              isActive: currentStep == 1,
-              isDone: false),
-        ]),
-      ]),
-    );
-  }
-}
-
-class _StepCircle extends StatelessWidget {
-  final int number;
-  final String label;
-  final bool isActive, isDone;
-  const _StepCircle(
-      {required this.number,
-      required this.label,
-      required this.isActive,
-      required this.isDone});
-
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: isActive || isDone
-                ? AppColors.accent
-                : AppColors.surfaceElevated,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isActive || isDone ? AppColors.accent : AppColors.border,
-              width: 1.5,
-            ),
-          ),
-          child: Center(
-            child: isDone
-                ? const Icon(Icons.check_rounded, color: Colors.black, size: 16)
-                : Text('$number',
-                    style: TextStyle(
-                      color: isActive ? Colors.black : AppColors.textMuted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    )),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: isActive ? AppColors.accent : AppColors.textMuted,
-            )),
-      ]);
-}
-
 class _SectionLabel extends StatelessWidget {
   final String label;
   final IconData icon;

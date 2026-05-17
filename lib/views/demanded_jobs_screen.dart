@@ -5,6 +5,7 @@ import '../constants/app_constants.dart';
 import '../controllers/job_card_controller.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/main_scaffold.dart';
+import '../widgets/wizard_step_bar.dart';
 
 class DemandedJobsScreen extends StatefulWidget {
   const DemandedJobsScreen({super.key});
@@ -101,6 +102,7 @@ class _DemandedJobsScreenState extends State<DemandedJobsScreen> with SingleTick
             ? Center(child: PrimaryButton(label: 'Create Job Card', icon: Icons.add,
                   onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)))
             : Column(children: [
+                const WizardStepBar(currentStep: 5),
               // Tab bar
               Container(
                 color: AppColors.surface,

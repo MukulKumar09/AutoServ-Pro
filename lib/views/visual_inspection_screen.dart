@@ -8,6 +8,7 @@ import '../controllers/job_card_controller.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/main_scaffold.dart';
 import '../services/cloudinary_service.dart';
+import '../widgets/wizard_step_bar.dart';
 
 class VisualInspectionScreen extends StatefulWidget {
   const VisualInspectionScreen({super.key});
@@ -152,9 +153,12 @@ class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
                 PrimaryButton(label: 'Create Job Card', icon: Icons.add,
                     onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.vehicleEntry)),
               ]))
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            : Column(children: [
+                const WizardStepBar(currentStep: 3),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // RO info
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -259,6 +263,7 @@ class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
                   const SizedBox(height: 20),
                 ]),
               ),
+            ]),
       ),
     );
   }
