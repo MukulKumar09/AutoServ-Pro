@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/job_card_controller.dart';
+import '../models/job_card_model.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/main_scaffold.dart';
 

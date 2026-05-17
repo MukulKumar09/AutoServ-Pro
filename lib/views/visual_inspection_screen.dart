@@ -14,10 +14,9 @@ class VisualInspectionScreen extends StatefulWidget {
   @override
   State<VisualInspectionScreen> createState() => _VisualInspectionScreenState();
 }
-
+class _VisualInspectionScreenState extends State<VisualInspectionScreen> {
   final _damageCtrl = TextEditingController();
   final _picker     = ImagePicker();
-
   static const _slots = [
     ('front',    Icons.arrow_upward_rounded,           'Front'),
     ('rear',     Icons.arrow_downward_rounded,          'Rear'),
